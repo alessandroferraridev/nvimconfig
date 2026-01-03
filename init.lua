@@ -166,6 +166,12 @@ vim.o.scrolloff = 10
 -- See `:help 'confirm'`
 vim.o.confirm = true
 
+-- Impostazioni per l'indentazione a 2 spazi
+vim.opt.tabstop = 2
+vim.opt.softtabstop = 2
+vim.opt.shiftwidth = 2
+vim.opt.expandtab = true -- Trasforma i tab in spazi
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -233,6 +239,13 @@ end
 ---@type vim.Option
 local rtp = vim.opt.rtp
 rtp:prepend(lazypath)
+
+-- Fondamentale per far capire a Neovim che .blade.php è "blade"
+vim.filetype.add {
+  pattern = {
+    ['.*%.blade%.php'] = 'blade',
+  },
+}
 
 -- [[ Configure and install plugins ]]
 --
@@ -683,6 +696,25 @@ require('lazy').setup({
         -- But for many setups, the LSP (`ts_ls`) will work just fine
         -- ts_ls = {},
         --
+        -- PHP & Laravel
+        intelephense = {
+          on_attach = function(client)
+            client.server_capabilities.documentFormattingProvider = false
+            client.server_capabilities.documentRangeFormattingProvider = false
+          end,
+        }, -- Il più comune per PHP
+
+        -- React & Typescript
+        ts_ls = {},
+
+        -- Tailwind CSS
+        tailwindcss = {
+          filetypes = { 'html', 'javascript', 'typescript', 'javascriptreact', 'typescriptreact', 'blade' },
+        },
+
+        -- HTML/CSS (Utili per i suggerimenti nei template)
+        html = { filetypes = { 'html', 'twig', 'hbs', 'blade' } },
+        cssls = {},
 
         lua_ls = {
           -- cmd = { ... },
@@ -719,15 +751,11 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- 2. Setup per gli altri server tramite Mason
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
-        automatic_installation = false,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
             server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
             require('lspconfig')[server_name].setup(server)
           end,
@@ -744,7 +772,7 @@ require('lazy').setup({
       {
         '<leader>f',
         function()
-          require('conform').format { async = true, lsp_format = 'fallback' }
+          require('conform').format { async = true, lsp_format = false }
         end,
         mode = '',
         desc = '[F]ormat buffer',
@@ -761,18 +789,47 @@ require('lazy').setup({
           return nil
         else
           return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
+            timeout_ms = 3000,
+            lsp_format = false,
           }
         end
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
-        -- You can use 'stop_after_first' to run the first available formatter from the list
-        -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        -- Per PHP e Laravel
+        php = { 'php-cs-fixer' },
+        -- Per Blade (richiede blade-formatter installato via npm o mason)
+        blade = { 'blade-formatter' },
+
+        -- La nuova sintassi corretta per React/JS/TS
+        javascript = { 'prettierd', 'prettier', stop_after_first = true },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        json = { 'prettierd', 'prettier', stop_after_first = true },
+      },
+      formatters = {
+        prettier = {
+          -- Forza 2 spazi e sovrascrive eventuali file di config nel progetto
+          prepend_args = { '--tab-width', '2', '--use-tabs', 'false' },
+        },
+        ['blade-formatter'] = {
+          prepend_args = { '--tab-width', '2' },
+        },
+        -- Se usi stylua per i file .lua
+        stylua = {
+          prepend_args = { '--indent-type', 'Spaces', '--indent-width', '2' },
+        },
+        ['php-cs-fixer'] = {
+          command = 'php-cs-fixer',
+          args = {
+            'fix',
+            '$FILENAME',
+            '--rules=@PSR12', -- Applica lo standard base
+            '--indentation=  ', -- FORZA i 2 spazi (assicurati che ci siano due spazi veri tra le virgolette)
+          },
+          stdin = false,
+        },
       },
     },
   },
@@ -941,17 +998,32 @@ require('lazy').setup({
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
+    main = 'nvim-treesitter', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+    -- Usiamo 'config' per registrare Blade, ma senza chiamare .setup() manualmente
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
+      ensure_installed = {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
+        'php',
+        'blade',
+        'javascript',
+        'typescript',
+        'tsx',
+        'css',
+      },
       auto_install = true,
       highlight = {
         enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
         additional_vim_regex_highlighting = { 'ruby' },
       },
       indent = { enable = true, disable = { 'ruby' } },
@@ -984,7 +1056,7 @@ require('lazy').setup({
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
