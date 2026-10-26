@@ -1,5 +1,6 @@
--- You can add your own plugins here or in other files in this directory!
---  I promise not to create any merge conflicts in this directory :)
+-- Punto d'ingresso per lazy.nvim: `import = 'custom.plugins'`
 --
--- See the kickstart.nvim README for more information
+-- lazy.nvim carica automaticamente questo file e TUTTI i moduli sibling
+-- presenti in lua/custom/plugins/ (theme.lua, lsp.lua, java.lua, ...).
+-- Ogni modulo restituisce la propria lista di specifiche plugin.
 return {}
